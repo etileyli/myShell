@@ -9,7 +9,55 @@
 
 int MAXCHAR = 512;
 char prompt[] = ">>> ";	// command line prompt
-char quitPrompt[] = "quit";	// command to quit
+char quitPrompt[] = "exit";	// command to quit
+
+char *builtInCommands[] = {
+	"exit",
+	"cd",
+	"help"
+};
+
+int launchProcess(char *commandName){
+	char* argv[] = {commandName, NULL};
+	pid_t childPid;
+	// Fork
+	if ((childPid = fork()) < 0)
+		perror("error in fork()");
+	else if (childPid == 0) {	// in child process
+		// execvp()
+		if (execvp(argv[0], argv) < 0){
+			printf("%s: Command not found\n", argv[0]);
+			exit(0);
+		}
+	}
+	else 		// parent process
+		// if (isBackground)
+		// 	printf("Child in background [%d]\n", childPid);
+		// else
+			wait(&childPid);
+	return 0;
+}
+
+int launchBuiltInCommands(char *commandName){
+
+	// Exit command
+	if (!strcmp(commandName, quitPrompt)){
+		printf("Quitting myShell...\n");
+		return 0;
+	}
+	else if (!strcmp(commandName, "cd")){
+		printf("it is a CD.\n");
+		return 1;
+	}
+	else if (!strcmp(commandName, "help")){
+		printf("it is a help.\n");
+		return 1;
+	}
+	else {	// Defensive
+		printf("Built-in command cannot be found!\n");
+		return 1;
+	}
+}
 
 int execute(input *inputLine){
 	char *commandName = inputLine->commands->info.com->name;
@@ -18,8 +66,17 @@ int execute(input *inputLine){
 	char *fileToInput;
 	char *fileToOutput;
 	int fd;
+	int builtInCommandNumber = sizeof(builtInCommands) / sizeof(char *);
 
 	// print_input(inputLine);
+
+	for (int i = 0; i < builtInCommandNumber; i++) {
+		if (strcmp(commandName, builtInCommands[i]) == 0) {
+			return launchBuiltInCommands(commandName);
+		}
+	}
+
+	launchProcess(commandName);
 
 	if ((fileToInput = inputLine->commands->input) != NULL){
 		if( access( fileToInput, F_OK ) != -1 ) {
@@ -41,42 +98,13 @@ int execute(input *inputLine){
 		}
 	}
 
-	if ((fileToOutput = inputLine->commands->output) != NULL){
-		printf("%s\n", fileToOutput);
-	}
-
-	if (!strcmp(commandName, quitPrompt)){
-			printf("Quitting myShell...\n");
-			return 0;
-	}
-
-	if (commandType == NORMAL){
-		char* argv[] = {commandName, NULL};	// for pwd
-		pid_t childPid;
-		// Fork
-		if ((childPid = fork()) < 0)
-			perror("error in fork()");
-		else if (childPid == 0) {	// in child process
-			// execvp()
-			if (execvp(argv[0], argv) < 0){
-				printf("%s: Command not found\n", argv[0]);
-				exit(0);
-			}
-		}
-		else	// in parent process
-			if (isBackground)
-				printf("Child in background [%d]\n", childPid);
-			else
-				wait(&childPid);
-			}
-		else if (commandType == SUBSHELL){
-
-		}
-		else
-			printf("Unknown command.\n");
+	// if ((fileToOutput = inputLine->commands->output) != NULL){
+	// 	printf("%s\n", fileToOutput);
+	// }
 
 		return 1;
 	}
+
 
 char *readLine(){
   char *line = NULL;

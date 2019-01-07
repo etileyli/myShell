@@ -38,7 +38,7 @@ int launchProcess(char *commandName){
 	return 0;
 }
 
-int launchBuiltInCommands(char *commandName){
+int launchBuiltInCommands(char *commandName, char **commandArgs){
 
 	// Exit command
 	if (!strcmp(commandName, quitPrompt)){
@@ -46,11 +46,16 @@ int launchBuiltInCommands(char *commandName){
 		return 0;
 	}
 	else if (!strcmp(commandName, "cd")){
-		printf("it is a CD.\n");
+		if (commandArgs == NULL)
+			printf("Please run cd command with proper argument.\n");
+		else{
+			chdir(commandArgs[0]);
+			launchProcess("pwd");
+		}
 		return 1;
 	}
 	else if (!strcmp(commandName, "help")){
-		printf("it is a help.\n");
+		printf("Some HELP stuff!\n");
 		return 1;
 	}
 	else {	// Defensive
@@ -61,6 +66,7 @@ int launchBuiltInCommands(char *commandName){
 
 int execute(input *inputLine){
 	char *commandName = inputLine->commands->info.com->name;
+	char **commandArgs = inputLine->commands->info.com->arguments;
 	enum command_type commandType = inputLine->commands->type;
 	int isBackground = inputLine->background;
 	char *fileToInput;
@@ -72,7 +78,7 @@ int execute(input *inputLine){
 
 	for (int i = 0; i < builtInCommandNumber; i++) {
 		if (strcmp(commandName, builtInCommands[i]) == 0) {
-			return launchBuiltInCommands(commandName);
+			return launchBuiltInCommands(commandName, commandArgs);
 		}
 	}
 

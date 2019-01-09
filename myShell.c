@@ -47,8 +47,8 @@ int launchSingleCommandProcess(input *inputLine){
 	char **argv = malloc((numOfArguments + 2) * sizeof(char *));	// command, arguments and NULL
 
 	argv[0] = commandName;
-	int i;
-	for (i = 1; i < numOfArguments + 1; i++){
+	int i = 1;
+	for (i; i < numOfArguments + 1; i++){
 		argv[i] = commandArgs[i-1];
 		printf("%s\n", argv[i]);
 	}
@@ -88,8 +88,13 @@ int launchBuiltInCommands(input *inputLine){
 		if (commandArgs == NULL)
 			printf("Please run cd command with proper argument.\n");
 		else{
-			chdir(commandArgs[0]);
-			launchSingleCommandProcess(inputLine);
+			if (chdir(commandArgs[0]) != 0)
+				printf("Error in changing directory! Please enter a valid path.\n");
+			else{
+				char *str = "pwd\n";
+				input *pwdCommand = parse(str);
+				launchSingleCommandProcess(pwdCommand);
+			}
 		}
 		return 1;
 	}

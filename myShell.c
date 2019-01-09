@@ -17,14 +17,50 @@ char *builtInCommands[] = {
 	"help"
 };
 
-int launchProcess(char *commandName){
-	char* argv[] = {commandName, NULL};
+int readFile(char *fileName ){
+	// Usage:
+	// char *ptr = "temp4.txt";
+	// if (!readFile(ptr))
+	// 	printf("File exists!\n");
+	// else
+	// 	printf("File %s does not exist!\n", ptr);
+	if( access(fileName, F_OK ) != -1 ) {
+		FILE *fptr = fopen(fileName, "r");
+		char c;
+		while (c != EOF){
+				printf ("%c", c);
+				c = fgetc(fptr);
+		}
+		fclose(fptr);
+		return 0;
+	}
+	else {
+		printf("%s not found!\n", fileName);
+	}
+	return 1;
+}
+
+int launchSingleCommandProcess(input *inputLine){
+	char *commandName = inputLine->commands->info.com->name;
+	char **commandArgs = inputLine->commands->info.com->arguments;
+	int numOfArguments = inputLine->commands->info.com->num_of_args;
+	char **argv = malloc((numOfArguments + 2) * sizeof(char *));	// command, arguments and NULL
+
+	argv[0] = commandName;
+	int i;
+	for (i = 1; i < numOfArguments + 1; i++){
+		argv[i] = commandArgs[i-1];
+		printf("%s\n", argv[i]);
+	}
+	argv[i] = NULL;		// should end with NULL
+	// char *argv[] = {"ls", "-l", NULL};
+
 	pid_t childPid;
 	// Fork
 	if ((childPid = fork()) < 0)
 		perror("error in fork()");
 	else if (childPid == 0) {	// in child process
-		// execvp()
+		// printf("in child\n");
 		if (execvp(argv[0], argv) < 0){
 			printf("%s: Command not found\n", argv[0]);
 			exit(0);
@@ -34,11 +70,14 @@ int launchProcess(char *commandName){
 		// if (isBackground)
 		// 	printf("Child in background [%d]\n", childPid);
 		// else
-			wait(&childPid);
+		wait(&childPid);
+		// printf("in parent\n");
 	return 0;
 }
 
-int launchBuiltInCommands(char *commandName, char **commandArgs){
+int launchBuiltInCommands(input *inputLine){
+	char *commandName = inputLine->commands->info.com->name;
+	char **commandArgs = inputLine->commands->info.com->arguments;
 
 	// Exit command
 	if (!strcmp(commandName, quitPrompt)){
@@ -50,7 +89,7 @@ int launchBuiltInCommands(char *commandName, char **commandArgs){
 			printf("Please run cd command with proper argument.\n");
 		else{
 			chdir(commandArgs[0]);
-			launchProcess("pwd");
+			launchSingleCommandProcess(inputLine);
 		}
 		return 1;
 	}
@@ -64,45 +103,36 @@ int launchBuiltInCommands(char *commandName, char **commandArgs){
 	}
 }
 
+int launchRedirectionCommandProcess (char *commandName, char **commandArgs, char *fileToInput, char *fileToOutput){
+
+	if (fileToInput != NULL)	// Input redirection
+		;
+
+	return 0;
+}
+
+// fd = open(fileToInput, O_RDONLY, 0);
+// dup2(fd, stdin);
+// Read file's content and print it to stdin
+
 int execute(input *inputLine){
 	char *commandName = inputLine->commands->info.com->name;
 	char **commandArgs = inputLine->commands->info.com->arguments;
-	enum command_type commandType = inputLine->commands->type;
-	int isBackground = inputLine->background;
-	char *fileToInput;
-	char *fileToOutput;
-	int fd;
+	// enum command_type commandType = inputLine->commands->type;
+	// int isBackground = inputLine->background;
+	char *fileToInput = inputLine->commands->input;
+	char *fileToOutput = inputLine->commands->output;
 	int builtInCommandNumber = sizeof(builtInCommands) / sizeof(char *);
 
 	// print_input(inputLine);
 
 	for (int i = 0; i < builtInCommandNumber; i++) {
 		if (strcmp(commandName, builtInCommands[i]) == 0) {
-			return launchBuiltInCommands(commandName, commandArgs);
+			return launchBuiltInCommands(inputLine);
 		}
 	}
 
-	launchProcess(commandName);
-
-	if ((fileToInput = inputLine->commands->input) != NULL){
-		if( access( fileToInput, F_OK ) != -1 ) {
-    	printf("file %s exists!\n", fileToInput);
-			// fd = open(fileToInput, O_RDONLY, 0);
-			// dup2(fd, stdin);
-			// Read file's content and print it to stdin
-			FILE *fptr = fopen(fileToInput, "r");
-			char c;
-			while (c != EOF){
-					printf ("%c", c);
-					c = fgetc(fptr);
-			}
-			fclose(fptr);
-			return 1;
-		}
-		else {
-			printf("file %s does NOT exist!\n", fileToInput);
-		}
-	}
+	launchSingleCommandProcess(inputLine);
 
 	// if ((fileToOutput = inputLine->commands->output) != NULL){
 	// 	printf("%s\n", fileToOutput);
@@ -147,7 +177,7 @@ void loop(void){
 int main(int argc, char** argv) {
 
 	printf("Welcome to myShell!\n");
-	loop();
+  loop();
 
 	// Perform any shutdown cleanup
 	return 0;

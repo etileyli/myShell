@@ -58,7 +58,7 @@ int launchSingleCommandProcess(input *inputLine){
 	int i = 1;
 	for (i; i < numOfArguments + 1; i++){
 		argv[i] = commandArgs[i-1];
-		printf("%s\n", argv[i]);
+		// printf("%s\n", argv[i]);
 	}
 	argv[i] = NULL;		// should end with NULL
 	// char *argv[] = {"ls", "-l", NULL};
@@ -113,7 +113,7 @@ int launchBuiltInCommands(input *inputLine){
 	}
 }
 
-int launchRedirectionCommandProcess (input *inputLine, int fileType){
+int launchRedirectionCommandProcess(input *inputLine, int fileType){
 	char *commandName = inputLine->commands->info.com->name;
 	char **commandArgs = inputLine->commands->info.com->arguments;
 	char *inputFile = inputLine->commands->input;
@@ -185,6 +185,163 @@ int launchRedirectionCommandProcess (input *inputLine, int fileType){
 	}
 }
 
+int launchSemiColonCommandProcess(input *inputLine){
+	int numOfCommands = inputLine->num_of_commands;
+	char *inputFile = inputLine->commands->input;
+	char *outputFile = inputLine->commands->output;
+	char **argvList[numOfCommands];
+
+	print_input(inputLine);
+
+	int k;
+	for (k = 0; k < numOfCommands; k++){
+		// create argv for each command
+		int i = 0;
+		char **commandArgs = inputLine->commands[k].info.com->arguments;
+		int numOfArguments = inputLine->commands[k].info.com->num_of_args;
+		char **argv = malloc((numOfArguments + 2) * sizeof(char *));
+		argv[i++] = inputLine->commands[k].info.com->name;
+
+		if (inputFile != NULL){	// input redirected
+			argv[i++] = inputFile;
+		}
+		else if (outputFile != NULL){	// output redirected
+			if (commandArgs != NULL){
+				argv[i++] = commandArgs[0];
+			}
+		}
+		else {	// single command
+			if (commandArgs != NULL){
+				int j;
+				for (j = 0; j < numOfArguments; j++)
+					argv[i++] = commandArgs[j];
+			}
+		}
+		argv[i] = NULL;
+		argvList[k] = argv;
+	}
+
+	// semi-colon
+	for (int k = 0; k < 3; k++){
+		pid_t childPid;
+		// Fork
+		if ((childPid = fork()) < 0)
+			perror("error in fork()");
+		else if (childPid == 0) {	// in child process
+			printf("in child\n");
+			printf("argvList[%d][0]: %s\n",k , argvList[k][0]);
+			if (execvp(argvList[k][0], argvList[k]) < 0){
+				printf("%s: Command not found\n", argvList[k][0]);
+				exit(0);
+			}
+		}
+		else 		// parent process
+			wait(&childPid);
+			printf("in parent\n");
+	}
+	// semi-colon
+
+	return 1;
+}
+
+int launchPipedCommandProcess(input *inputLine){
+	int numOfCommands = inputLine->num_of_commands;
+	char *inputFile = inputLine->commands->input;
+	char *outputFile = inputLine->commands->output;
+	char **argvList[numOfCommands];
+
+	print_input(inputLine);
+
+	int k;
+	for (k = 0; k < numOfCommands; k++){
+		// create argv for each command
+		int i = 0;
+		char **commandArgs = inputLine->commands[k].info.com->arguments;
+		int numOfArguments = inputLine->commands[k].info.com->num_of_args;
+		char **argv = malloc((numOfArguments + 2) * sizeof(char *));
+		argv[i++] = inputLine->commands[k].info.com->name;
+
+		if (inputFile != NULL){	// input redirected
+			argv[i++] = inputFile;
+		}
+		else if (outputFile != NULL){	// output redirected
+			if (commandArgs != NULL){
+				argv[i++] = commandArgs[0];
+			}
+		}
+		else {	// single command
+			if (commandArgs != NULL){
+				int j;
+				for (j = 0; j < numOfArguments; j++)
+					argv[i++] = commandArgs[j];
+			}
+		}
+		argv[i] = NULL;
+		argvList[k] = argv;
+	}
+
+	// semi-colon
+	for (int k = 0; k < 3; k++){
+		pid_t childPid;
+		// Fork
+		if ((childPid = fork()) < 0)
+			perror("error in fork()");
+		else if (childPid == 0) {	// in child process
+			printf("in child\n");
+			printf("argvList[%d][0]: %s\n",k , argvList[k][0]);
+			if (execvp(argvList[k][0], argvList[k]) < 0){
+				printf("%s: Command not found\n", argvList[k][0]);
+				exit(0);
+			}
+		}
+		else 		// parent process
+			wait(&childPid);
+			printf("in parent\n");
+	}
+	// semi-colon
+
+/*
+	int fd[2];	// to hold fds of both ends of pipe
+	int status1, status2;	// status' of child processes
+	pid_t childPid1, childPid2;
+
+	if (pipe(fd) < 0)
+		perror("pipe error!\n");
+
+	if (childPid1 = fork())	{
+		if (childPid2 = fork()){	// parent process
+			close(fd[0]);
+			close(fd[1]);
+			pid_t w1 = waitpid(childPid1, &status1, WUNTRACED | WCONTINUED);
+			pid_t w2 = waitpid(childPid2, &status2, WUNTRACED | WCONTINUED);
+			if ( (w1 == -1) || (w2 == -1)){
+				perror("waitpid");
+				exit(EXIT_FAILURE);
+			}
+		}
+		else if (childPid2 == 0){	// child process (pipe reader child)
+			close(fd[1]);
+			dup2(fd[0], 0);
+			close(fd[0]);
+			// if (execvp(argv[0], argv) < 0){
+			// 		printf("%s: Command not found\n", argv[0]);
+			// 		exit(-1);
+			// }
+		}
+	}
+	else if (childPid1 == 0){//  child process (pipe writer child)
+		close(fd[0]);
+		dup2(fd[1], 1);
+		close(fd[1]);
+		// if (execvp(argv[0], argv) < 0){
+		// 		printf("%s: Command not found\n", argv[0]);
+		// 		exit(-1);
+		// }
+	}
+*/
+	return 1;
+}
+
 int execute(input *inputLine){
 	char *commandName = inputLine->commands->info.com->name;
 	char **commandArgs = inputLine->commands->info.com->arguments;
@@ -192,9 +349,19 @@ int execute(input *inputLine){
 	// int isBackground = inputLine->background;
 	char *fileToInput = inputLine->commands->input;
 	char *fileToOutput = inputLine->commands->output;
+	char del = inputLine->del;
 	int builtInCommandNumber = sizeof(builtInCommands) / sizeof(char *);
 
 	// print_input(inputLine);
+
+	if (del == '|'){
+		printf("It is a Pipe!\n");
+		return launchPipedCommandProcess(inputLine);
+	}
+	else if (del == ';'){
+		printf("It is a semi-colon");
+		return launchSemiColonCommandProcess(inputLine);
+	}
 
 	if (fileToInput != NULL){
 		//printf("Input redirection\n");

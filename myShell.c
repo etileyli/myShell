@@ -10,6 +10,7 @@
 int MAXCHAR = 512;
 char prompt[] = ">>> ";	// command line prompt
 char quitPrompt[] = "exit";	// command to quit
+enum redirectedFileType {IN, OUT} redirFileType;
 
 char *builtInCommands[] = {
 	"exit",
@@ -40,6 +41,13 @@ int readFile(char *fileName ){
 	return 1;
 }
 
+char *readLine(){
+  char *line = NULL;
+  ssize_t bufsize = 0;
+	bufsize = getline(&line, &bufsize, stdin);
+  return line;
+}
+
 int launchSingleCommandProcess(input *inputLine){
 	char *commandName = inputLine->commands->info.com->name;
 	char **commandArgs = inputLine->commands->info.com->arguments;
@@ -67,9 +75,6 @@ int launchSingleCommandProcess(input *inputLine){
 		}
 	}
 	else 		// parent process
-		// if (isBackground)
-		// 	printf("Child in background [%d]\n", childPid);
-		// else
 		wait(&childPid);
 		// printf("in parent\n");
 	return 0;
@@ -108,12 +113,52 @@ int launchBuiltInCommands(input *inputLine){
 	}
 }
 
-int launchRedirectionCommandProcess (char *commandName, char **commandArgs, char *fileToInput, char *fileToOutput){
+int launchRedirectionCommandProcess (input *inputLine, int fileType){
+	char *commandName = inputLine->commands->info.com->name;
+	char *inputFile = inputLine->commands->input;
+	char *outputFile = inputLine->commands->output;
+	int status;
+	char **argv = malloc((3) * sizeof(char *));	// command, fileName and NULL
 
-	if (fileToInput != NULL)	// Input redirection
-		;
+	// print_input(inputLine);
+	int i = 0;
+	argv[i++] = commandName;
+	if (fileType == IN){
+		argv[i++] = inputFile;
+	}
+	else if (fileType == OUT){
+		argv[i++] = outputFile;
+	}
+	argv[i] = NULL;		// should end with NULL
 
-	return 0;
+	pid_t childPid;
+	// Fork
+	if ((childPid = fork()) < 0)
+		perror("error in fork()");
+	else if (childPid == 0) {	// in child process
+		// printf("in child process\n");
+		int fd;
+		fd = open(argv[1], O_RDONLY, 0);
+		dup2(fd, 0);
+		if (execvp(argv[0], argv) < 0){		// cat fileName in child process
+			printf("%s: Command not found\n", argv[0]);
+			exit(-1);
+		}
+	}
+	else {
+		// parent process
+		pid_t w = waitpid(childPid, &status, WUNTRACED | WCONTINUED);
+		if (w == -1) {
+			perror("waitpid");
+			exit(EXIT_FAILURE);
+		}
+		if (WIFEXITED(status)) {
+      // printf("exited, status=%d\n", WEXITSTATUS(status));
+    }
+		// printf("status: %d\n", status);
+		//printf("in parent\n");
+		return 1;
+	}
 }
 
 // fd = open(fileToInput, O_RDONLY, 0);
@@ -131,6 +176,17 @@ int execute(input *inputLine){
 
 	// print_input(inputLine);
 
+	if (fileToInput != NULL){
+		//printf("Input redirection\n");
+		redirFileType = IN;
+		return launchRedirectionCommandProcess(inputLine, redirFileType);
+	}
+	else if (fileToOutput != NULL){
+		// printf("Output redirection!\n");
+		redirFileType = OUT;
+		return launchRedirectionCommandProcess(inputLine, redirFileType);
+	}
+
 	for (int i = 0; i < builtInCommandNumber; i++) {
 		if (strcmp(commandName, builtInCommands[i]) == 0) {
 			return launchBuiltInCommands(inputLine);
@@ -139,19 +195,7 @@ int execute(input *inputLine){
 
 	launchSingleCommandProcess(inputLine);
 
-	// if ((fileToOutput = inputLine->commands->output) != NULL){
-	// 	printf("%s\n", fileToOutput);
-	// }
-
-		return 1;
-	}
-
-
-char *readLine(){
-  char *line = NULL;
-  ssize_t bufsize = 0;
-	bufsize = getline(&line, &bufsize, stdin);
-  return line;
+	return 1;
 }
 
 void loop(void){

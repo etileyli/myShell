@@ -146,7 +146,14 @@ int launchRedirectionCommandProcess (input *inputLine, int fileType){
 			fd = open(argv[1], O_RDONLY, 0);
 			dup2(fd, 0);
 		}else if (fileType == OUT){
-			fd = open(outputFile, O_WRONLY, 0);
+			if( access( outputFile, F_OK ) != -1 ) {
+				fd = open(outputFile, O_WRONLY, 0);
+			} else {
+		  	FILE *temp;
+				if ((temp = fopen(outputFile, "w")) == NULL)
+					printf("file open error\n");
+					exit(-1);
+			}
 			dup2(fd, 1);
 			// close(fd);
 		}

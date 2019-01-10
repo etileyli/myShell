@@ -115,19 +115,23 @@ int launchBuiltInCommands(input *inputLine){
 
 int launchRedirectionCommandProcess (input *inputLine, int fileType){
 	char *commandName = inputLine->commands->info.com->name;
+	char **commandArgs = inputLine->commands->info.com->arguments;
 	char *inputFile = inputLine->commands->input;
 	char *outputFile = inputLine->commands->output;
 	int status;
 	char **argv = malloc((3) * sizeof(char *));	// command, fileName and NULL
 
 	// print_input(inputLine);
+
 	int i = 0;
 	argv[i++] = commandName;
 	if (fileType == IN){
 		argv[i++] = inputFile;
 	}
 	else if (fileType == OUT){
-		argv[i++] = outputFile;
+		if (commandArgs != NULL){
+			argv[i++] = commandArgs[0];
+		}
 	}
 	argv[i] = NULL;		// should end with NULL
 
@@ -138,8 +142,14 @@ int launchRedirectionCommandProcess (input *inputLine, int fileType){
 	else if (childPid == 0) {	// in child process
 		// printf("in child process\n");
 		int fd;
-		fd = open(argv[1], O_RDONLY, 0);
-		dup2(fd, 0);
+		if (fileType == IN){
+			fd = open(argv[1], O_RDONLY, 0);
+			dup2(fd, 0);
+		}else if (fileType == OUT){
+			fd = open(outputFile, O_WRONLY, 0);
+			dup2(fd, 1);
+			// close(fd);
+		}
 		if (execvp(argv[0], argv) < 0){		// cat fileName in child process
 			printf("%s: Command not found\n", argv[0]);
 			exit(-1);
@@ -155,15 +165,13 @@ int launchRedirectionCommandProcess (input *inputLine, int fileType){
 		if (WIFEXITED(status)) {
       // printf("exited, status=%d\n", WEXITSTATUS(status));
     }
+		else
+			printf("child process returned abnormally!\n");
 		// printf("status: %d\n", status);
 		//printf("in parent\n");
 		return 1;
 	}
 }
-
-// fd = open(fileToInput, O_RDONLY, 0);
-// dup2(fd, stdin);
-// Read file's content and print it to stdin
 
 int execute(input *inputLine){
 	char *commandName = inputLine->commands->info.com->name;

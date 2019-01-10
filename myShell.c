@@ -146,18 +146,23 @@ int launchRedirectionCommandProcess (input *inputLine, int fileType){
 			fd = open(argv[1], O_RDONLY, 0);
 			dup2(fd, 0);
 		}else if (fileType == OUT){
-			if( access( outputFile, F_OK ) != -1 ) {
+			if(access(outputFile, F_OK ) != -1) {
 				fd = open(outputFile, O_WRONLY, 0);
+				dup2(fd, 1);
 			} else {
-		  	FILE *temp;
-				if ((temp = fopen(outputFile, "w")) == NULL)
+		  	FILE *temp = fopen(outputFile, "w");
+				if (temp == NULL){
+					printf("In if\n");
 					printf("file open error\n");
 					exit(-1);
+				}else{
+					fd = open(outputFile, O_WRONLY, 0);
+					dup2(fd, 1);
+				}
 			}
-			dup2(fd, 1);
-			// close(fd);
 		}
-		if (execvp(argv[0], argv) < 0){		// cat fileName in child process
+		close(fd);
+		if (execvp(argv[0], argv) < 0){
 			printf("%s: Command not found\n", argv[0]);
 			exit(-1);
 		}

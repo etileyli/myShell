@@ -11,35 +11,13 @@ int MAXCHAR = 512;
 char prompt[] = ">>> ";	// command line prompt
 char quitPrompt[] = "exit";	// command to quit
 enum redirectedFileType {IN, OUT} redirFileType;
+enum commandProcessType {SINGLE, REDIR} commProcType;
 
 char *builtInCommands[] = {
 	"exit",
 	"cd",
 	"help"
 };
-
-int readFile(char *fileName ){
-	// Usage:
-	// char *ptr = "temp4.txt";
-	// if (!readFile(ptr))
-	// 	printf("File exists!\n");
-	// else
-	// 	printf("File %s does not exist!\n", ptr);
-	if( access(fileName, F_OK ) != -1 ) {
-		FILE *fptr = fopen(fileName, "r");
-		char c;
-		while (c != EOF){
-				printf ("%c", c);
-				c = fgetc(fptr);
-		}
-		fclose(fptr);
-		return 0;
-	}
-	else {
-		printf("%s not found!\n", fileName);
-	}
-	return 1;
-}
 
 char *readLine(){
   char *line = NULL;
@@ -190,8 +168,8 @@ int launchSemiColonCommandProcess(input *inputLine){
 	char *inputFile = inputLine->commands->input;
 	char *outputFile = inputLine->commands->output;
 	char **argvList[numOfCommands];
-
-	print_input(inputLine);
+	int commProcType[numOfCommands];
+	// print_input(inputLine);
 
 	int k;
 	for (k = 0; k < numOfCommands; k++){
@@ -204,10 +182,12 @@ int launchSemiColonCommandProcess(input *inputLine){
 
 		if (inputFile != NULL){	// input redirected
 			argv[i++] = inputFile;
+			commProcType[k] = REDIR;
 		}
 		else if (outputFile != NULL){	// output redirected
 			if (commandArgs != NULL){
 				argv[i++] = commandArgs[0];
+				commProcType[k] = REDIR;
 			}
 		}
 		else {	// single command
@@ -216,6 +196,7 @@ int launchSemiColonCommandProcess(input *inputLine){
 				for (j = 0; j < numOfArguments; j++)
 					argv[i++] = commandArgs[j];
 			}
+			commProcType[k] = SINGLE;
 		}
 		argv[i] = NULL;
 		argvList[k] = argv;
@@ -223,21 +204,27 @@ int launchSemiColonCommandProcess(input *inputLine){
 
 	// semi-colon
 	for (int k = 0; k < 3; k++){
-		pid_t childPid;
-		// Fork
-		if ((childPid = fork()) < 0)
-			perror("error in fork()");
-		else if (childPid == 0) {	// in child process
-			printf("in child\n");
-			printf("argvList[%d][0]: %s\n",k , argvList[k][0]);
-			if (execvp(argvList[k][0], argvList[k]) < 0){
-				printf("%s: Command not found\n", argvList[k][0]);
-				exit(0);
+
+		if (commProcType[k] == SINGLE){
+			pid_t childPid;
+			// Fork
+			if ((childPid = fork()) < 0)
+				perror("error in fork()");
+			else if (childPid == 0) {	// in child process
+				// printf("in child\n");
+				// printf("argvList[%d][0]: %s\n",k , argvList[k][0]);
+				if (execvp(argvList[k][0], argvList[k]) < 0){
+					printf("%s: Command not found\n", argvList[k][0]);
+					exit(0);
+				}
 			}
+			else 		// parent process
+				wait(&childPid);
+				// printf("in parent\n");
 		}
-		else 		// parent process
-			wait(&childPid);
-			printf("in parent\n");
+		else if (commProcType[k] == REDIR){
+
+		}
 	}
 	// semi-colon
 
@@ -280,7 +267,7 @@ int launchPipedCommandProcess(input *inputLine){
 		argvList[k] = argv;
 	}
 
-	// semi-colon
+	// TEST
 	for (int k = 0; k < 3; k++){
 		pid_t childPid;
 		// Fork
@@ -298,7 +285,7 @@ int launchPipedCommandProcess(input *inputLine){
 			wait(&childPid);
 			printf("in parent\n");
 	}
-	// semi-colon
+	// TEST
 
 /*
 	int fd[2];	// to hold fds of both ends of pipe
@@ -359,7 +346,6 @@ int execute(input *inputLine){
 		return launchPipedCommandProcess(inputLine);
 	}
 	else if (del == ';'){
-		printf("It is a semi-colon");
 		return launchSemiColonCommandProcess(inputLine);
 	}
 

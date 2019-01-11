@@ -1,4 +1,9 @@
 
+all: output
+
+run:
+	./myShell
+
 output: myShell.o parser.o
 	gcc myShell.o parser.o -o myShell
 

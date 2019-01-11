@@ -94,10 +94,11 @@ int launchBuiltInCommands(input *inputLine){
 int launchRedirectionCommandProcess(input *inputLine, int fileType){
 	char *commandName = inputLine->commands->info.com->name;
 	char **commandArgs = inputLine->commands->info.com->arguments;
+	int commandArgNum = inputLine->commands->info.com->num_of_args;
 	char *inputFile = inputLine->commands->input;
 	char *outputFile = inputLine->commands->output;
 	int status;
-	char **argv = malloc((3) * sizeof(char *));	// command, fileName and NULL
+	char **argv = malloc((3 + commandArgNum) * sizeof(char *));	// command, arguments, fileName and NULL
 
 	// print_input(inputLine);
 
@@ -108,10 +109,15 @@ int launchRedirectionCommandProcess(input *inputLine, int fileType){
 	}
 	else if (fileType == OUT){
 		if (commandArgs != NULL){
-			argv[i++] = commandArgs[0];
+			int j;
+			for (j = 0; j < commandArgNum; j++ )
+				argv[i++] = commandArgs[j];
 		}
 	}
 	argv[i] = NULL;		// should end with NULL
+
+	// for (int j = 0; j < commandArgNum + 2; j++ )
+	// 	printf("%s\n", argv[j]);
 
 	pid_t childPid;
 	// Fork
@@ -130,7 +136,6 @@ int launchRedirectionCommandProcess(input *inputLine, int fileType){
 			} else {
 		  	FILE *temp = fopen(outputFile, "w");
 				if (temp == NULL){
-					printf("In if\n");
 					printf("file open error\n");
 					exit(-1);
 				}else{
@@ -158,17 +163,16 @@ int launchRedirectionCommandProcess(input *inputLine, int fileType){
 		else
 			printf("child process returned abnormally!\n");
 		// printf("status: %d\n", status);
-		//printf("in parent\n");
+		// printf("in parent\n");
 		return 1;
 	}
 }
 
 int launchSemiColonCommandProcess(input *inputLine){
 	int numOfCommands = inputLine->num_of_commands;
-	char *inputFile = inputLine->commands->input;
-	char *outputFile = inputLine->commands->output;
 	char **argvList[numOfCommands];
 	int commProcType[numOfCommands];
+	int redirFileType[numOfCommands];
 	// print_input(inputLine);
 
 	int k;
@@ -179,15 +183,20 @@ int launchSemiColonCommandProcess(input *inputLine){
 		int numOfArguments = inputLine->commands[k].info.com->num_of_args;
 		char **argv = malloc((numOfArguments + 2) * sizeof(char *));
 		argv[i++] = inputLine->commands[k].info.com->name;
+		char *inputFile = inputLine->commands[k].input;
+		char *outputFile = inputLine->commands[k].output;
+
 
 		if (inputFile != NULL){	// input redirected
 			argv[i++] = inputFile;
 			commProcType[k] = REDIR;
+			redirFileType[k] = IN;
 		}
 		else if (outputFile != NULL){	// output redirected
 			if (commandArgs != NULL){
 				argv[i++] = commandArgs[0];
 				commProcType[k] = REDIR;
+				redirFileType[k] = OUT;
 			}
 		}
 		else {	// single command
@@ -204,7 +213,6 @@ int launchSemiColonCommandProcess(input *inputLine){
 
 	// semi-colon
 	for (int k = 0; k < 3; k++){
-
 		if (commProcType[k] == SINGLE){
 			pid_t childPid;
 			// Fork
@@ -224,6 +232,31 @@ int launchSemiColonCommandProcess(input *inputLine){
 		}
 		else if (commProcType[k] == REDIR){
 
+			// concatenate commands and arguments into string. call redir function
+			if (redirFileType[k] == IN){
+				char temp[MAXCHAR];
+				strcpy(temp, "cat < ");
+				strcat(temp, argvList[k][1]);	// file name of input redirected command
+				strcat(temp, "\n");
+				input *cmd = parse(temp);
+				// printf("input command: %s\n", temp);
+				launchRedirectionCommandProcess(cmd, IN);
+			}
+			else if (redirFileType[k] == OUT){
+				char temp[MAXCHAR];
+				strcpy(temp, argvList[k][0]);	// copy command
+				strcat(temp, " ");
+				strcat(temp, "> ");
+				int j;
+				for (j = 0; j < inputLine->commands[k].info.com->num_of_args; j++){
+					strcat(temp, argvList[k][j + 1]);
+					strcat(temp, " ");
+				}
+				strcat(temp, "\n");
+				input *cmd = parse(temp);
+				// printf("output command: %s", temp);
+				launchRedirectionCommandProcess(cmd, OUT);
+			}
 		}
 	}
 	// semi-colon
@@ -359,6 +392,7 @@ int execute(input *inputLine){
 		redirFileType = OUT;
 		return launchRedirectionCommandProcess(inputLine, redirFileType);
 	}
+
 
 	for (int i = 0; i < builtInCommandNumber; i++) {
 		if (strcmp(commandName, builtInCommands[i]) == 0) {

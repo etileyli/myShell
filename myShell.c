@@ -12,6 +12,7 @@ char prompt[] = ">>> ";	// command line prompt
 char quitPrompt[] = "exit";	// command to quit
 enum redirectedFileType {IN, OUT} redirFileType;
 enum commandProcessType {SINGLE, REDIR} commProcType;
+enum commandHasArgs {NOARGS, ARGEXISTS};
 
 char *builtInCommands[] = {
 	"exit",
@@ -173,89 +174,83 @@ int launchSemiColonCommandProcess(input *inputLine){
 	char **argvList[numOfCommands];
 	int commProcType[numOfCommands];
 	int redirFileType[numOfCommands];
+	int commandArgExists[numOfCommands];
 	// print_input(inputLine);
 
 	int k;
 	for (k = 0; k < numOfCommands; k++){
 		// create argv for each command
-		int i = 0;
+		char *commandName = inputLine->commands[k].info.com->name;
 		char **commandArgs = inputLine->commands[k].info.com->arguments;
 		int numOfArguments = inputLine->commands[k].info.com->num_of_args;
-		char **argv = malloc((numOfArguments + 2) * sizeof(char *));
-		argv[i++] = inputLine->commands[k].info.com->name;
+		char **argv = malloc((numOfArguments + 2) * sizeof(char *));	// cmd + arguments + file (if exists)
 		char *inputFile = inputLine->commands[k].input;
 		char *outputFile = inputLine->commands[k].output;
 
+		int i = 0;
+		argv[i++] = inputLine->commands[k].info.com->name;	// argv[0] = command name
 
+		// Decide type, get fileName if exists
 		if (inputFile != NULL){	// input redirected
 			argv[i++] = inputFile;
 			commProcType[k] = REDIR;
 			redirFileType[k] = IN;
 		}
 		else if (outputFile != NULL){	// output redirected
-			if (commandArgs != NULL){
-				argv[i++] = commandArgs[0];
-				commProcType[k] = REDIR;
-				redirFileType[k] = OUT;
-			}
+			argv[i++] = outputFile;
+			commProcType[k] = REDIR;
+			redirFileType[k] = OUT;
 		}
 		else {	// single command
-			if (commandArgs != NULL){
-				int j;
-				for (j = 0; j < numOfArguments; j++)
-					argv[i++] = commandArgs[j];
-			}
 			commProcType[k] = SINGLE;
 		}
-		argv[i] = NULL;
-		argvList[k] = argv;
+
+		// get arguments if exist
+		if (commandArgs != NULL){
+			for (int j = 0; j < numOfArguments; j++){
+				argv[i++] = commandArgs[j];
+				commandArgExists[k] = ARGEXISTS;
+			}
+		}
+		else
+			commandArgExists[k] = NOARGS;
+
+		argvList[k] = argv;	// Add the argument to the list
 	}
 
 	// semi-colon
-	for (int k = 0; k < 3; k++){
-		if (commProcType[k] == SINGLE){
-			pid_t childPid;
-			// Fork
-			if ((childPid = fork()) < 0)
-				perror("error in fork()");
-			else if (childPid == 0) {	// in child process
-				// printf("in child\n");
-				// printf("argvList[%d][0]: %s\n",k , argvList[k][0]);
-				if (execvp(argvList[k][0], argvList[k]) < 0){
-					printf("%s: Command not found\n", argvList[k][0]);
-					exit(0);
-				}
+	for (int k = 0; k < numOfCommands; k++){
+		char **commandArgs = inputLine->commands[k].info.com->arguments;
+		int numOfArguments = inputLine->commands[k].info.com->num_of_args;
+		char temp[MAXCHAR];	// reproduce commands
+		strcpy (temp, argvList[k][0]);	// command name
+
+		if (commandArgExists[k] == ARGEXISTS){
+			for (int j = 0; j < numOfArguments; j++){
+				strcat(temp, " ");
+				strcat(temp, commandArgs[j]);	// command Args
 			}
-			else 		// parent process
-				wait(&childPid);
-				// printf("in parent\n");
+		}
+
+		if (commProcType[k] == SINGLE){
+			strcat(temp, "\n");
+			// printf("commandLine: %s", temp);
+			launchSingleCommandProcess(parse(temp));
 		}
 		else if (commProcType[k] == REDIR){
-
-			// concatenate commands and arguments into string. call redir function
 			if (redirFileType[k] == IN){
-				char temp[MAXCHAR];
-				strcpy(temp, "cat < ");
-				strcat(temp, argvList[k][1]);	// file name of input redirected command
+				strcat(temp, " < ");
+				strcat(temp, argvList[k][1]);		// fileName
 				strcat(temp, "\n");
-				input *cmd = parse(temp);
 				// printf("input command: %s\n", temp);
-				launchRedirectionCommandProcess(cmd, IN);
+				launchRedirectionCommandProcess(parse(temp), IN);
 			}
 			else if (redirFileType[k] == OUT){
-				char temp[MAXCHAR];
-				strcpy(temp, argvList[k][0]);	// copy command
-				strcat(temp, " ");
-				strcat(temp, "> ");
-				int j;
-				for (j = 0; j < inputLine->commands[k].info.com->num_of_args; j++){
-					strcat(temp, argvList[k][j + 1]);
-					strcat(temp, " ");
-				}
+				strcat(temp, " > ");
+				strcat(temp, argvList[k][1]);		// fileName
 				strcat(temp, "\n");
-				input *cmd = parse(temp);
 				// printf("output command: %s", temp);
-				launchRedirectionCommandProcess(cmd, OUT);
+				launchRedirectionCommandProcess(parse(temp), OUT);
 			}
 		}
 	}
